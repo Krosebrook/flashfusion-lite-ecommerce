@@ -1,7 +1,7 @@
 import { api, APIError } from "encore.dev/api";
 import { getAuthData } from "~encore/auth";
 import { orderDB } from "./db";
-import type { CreateOrderRequest, OrderWithItems } from "./types";
+import type { CreateOrderRequest, OrderWithItems, Order, OrderItem } from "./types";
 
 interface CreateOrderParams {
   storeId: number;
@@ -47,7 +47,7 @@ export const create = api<CreateOrderParams & CreateOrderBody, OrderWithItems>(
         throw APIError.invalidArgument(`Product ${product.name} is not available`);
       }
 
-      if (product.stock_quantity !== null && product.stock_quantity < item.quantity) {
+      if (product.stock_quantity !== null && product.stock_quantity !== undefined && product.stock_quantity < item.quantity) {
         throw APIError.invalidArgument(`Insufficient stock for product ${product.name}`);
       }
 

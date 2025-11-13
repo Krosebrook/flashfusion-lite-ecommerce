@@ -276,7 +276,7 @@ export default function StorePage() {
                             </span>
                           )}
                         </div>
-                        {product.stock_quantity !== null && (
+                        {product.stock_quantity !== null && product.stock_quantity !== undefined && (
                           <Badge variant={product.stock_quantity > 0 ? "default" : "destructive"}>
                             {product.stock_quantity > 0 ? `${product.stock_quantity} left` : 'Out of stock'}
                           </Badge>

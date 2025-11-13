@@ -1,7 +1,7 @@
 import { api, APIError } from "encore.dev/api";
 import { getAuthData } from "~encore/auth";
 import { productDB } from "./db";
-import type { CreateProductRequest, ProductWithImages } from "./types";
+import type { CreateProductRequest, ProductWithImages, Product, ProductImage } from "./types";
 
 interface CreateProductParams {
   storeId: number;
@@ -12,7 +12,7 @@ interface CreateProductBody extends CreateProductRequest {}
 // Creates a new product for a store.
 export const create = api<CreateProductParams & CreateProductBody, ProductWithImages>(
   {auth: true, expose: true, method: "POST", path: "/stores/:storeId/products"},
-  async (req) => {
+  async (req): Promise<ProductWithImages> => {
     const auth = getAuthData()!;
 
     // Check if user has permission to manage this store
@@ -42,7 +42,7 @@ export const create = api<CreateProductParams & CreateProductBody, ProductWithIm
       throw APIError.invalidArgument("Subscription interval is required for subscription products");
     }
 
-    const product = await productDB.queryRow<ProductWithImages>`
+    const product = await productDB.queryRow<Product>`
       INSERT INTO products (
         store_id, category_id, name, description, price, currency,
         is_subscription, subscription_interval, subscription_interval_count,
@@ -62,10 +62,10 @@ export const create = api<CreateProductParams & CreateProductBody, ProductWithIm
     }
 
     // Add images if provided
-    const images = [];
+    const images: ProductImage[] = [];
     if (req.images && req.images.length > 0) {
       for (const image of req.images) {
-        const productImage = await productDB.queryRow`
+        const productImage = await productDB.queryRow<ProductImage>`
           INSERT INTO product_images (product_id, url, alt_text, sort_order)
           VALUES (${product.id}, ${image.url}, ${image.alt_text || null}, ${image.sort_order || 0})
           RETURNING *

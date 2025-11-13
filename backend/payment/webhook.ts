@@ -8,12 +8,14 @@ const stripeWebhookSecret = secret("StripeWebhookSecret");
 
 interface WebhookRequest {
   signature: Header<"stripe-signature">;
+  body: string;
 }
 
 // Handles Stripe webhook events.
 export const webhook = api<WebhookRequest, void>(
   {expose: true, method: "POST", path: "/webhooks/stripe"},
-  async (req, body) => {
+  async (req) => {
+    const body = req.body;
     const sig = req.signature;
     
     if (!sig) {

@@ -71,7 +71,7 @@ export const createCheckoutSession = api<CreateCheckoutSessionParams & CreateChe
         throw APIError.invalidArgument(`Product ${product.name} is not available`);
       }
 
-      if (product.stock_quantity !== null && product.stock_quantity < item.quantity) {
+      if (product.stock_quantity !== null && product.stock_quantity !== undefined && product.stock_quantity < item.quantity) {
         throw APIError.invalidArgument(`Insufficient stock for product ${product.name}`);
       }
 
