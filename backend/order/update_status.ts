@@ -2,6 +2,7 @@ import { api, APIError } from "encore.dev/api";
 import { getAuthData } from "~encore/auth";
 import { orderDB } from "./db";
 import type { Order } from "./types";
+import { orderStatusTopic } from "../realtime/topics";
 
 interface UpdateOrderStatusParams {
   storeId: number;
@@ -31,6 +32,14 @@ export const updateStatus = api<UpdateOrderStatusParams & UpdateOrderStatusReque
       throw APIError.notFound("Order not found or insufficient permissions");
     }
 
+    const currentOrder = await orderDB.queryRow<Order>`
+      SELECT * FROM orders WHERE id = ${req.id}
+    `;
+
+    if (!currentOrder) {
+      throw APIError.notFound("Order not found");
+    }
+
     const order = await orderDB.queryRow<Order>`
       UPDATE orders 
       SET status = ${req.status}, updated_at = NOW()
@@ -41,6 +50,16 @@ export const updateStatus = api<UpdateOrderStatusParams & UpdateOrderStatusReque
     if (!order) {
       throw APIError.internal("Failed to update order status");
     }
+
+    await orderStatusTopic.publish({
+      orderId: order.id,
+      storeId: order.store_id,
+      customerId: order.customer_id || "",
+      customerEmail: order.customer_email,
+      oldStatus: currentOrder.status,
+      newStatus: order.status,
+      timestamp: new Date(),
+    });
 
     return order;
   }

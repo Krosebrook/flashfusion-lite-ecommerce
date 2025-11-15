@@ -2,6 +2,7 @@ import { api, APIError } from "encore.dev/api";
 import { getAuthData } from "~encore/auth";
 import { productDB } from "./db";
 import type { UpdateProductRequest, ProductWithImages } from "./types";
+import { stockUpdateTopic } from "../realtime/topics";
 
 interface UpdateProductParams {
   storeId: number;
@@ -74,7 +75,13 @@ export const update = api<UpdateProductParams & UpdateProductBody, ProductWithIm
       updates.push(`subscription_interval_count = $${values.length + 1}`);
       values.push(req.subscription_interval_count);
     }
+    let oldStock: number | null = null;
     if (req.stock_quantity !== undefined) {
+      const currentProduct = await productDB.queryRow<{stock_quantity: number | null}>`
+        SELECT stock_quantity FROM products WHERE id = ${req.id}
+      `;
+      oldStock = currentProduct?.stock_quantity ?? null;
+      
       updates.push(`stock_quantity = $${values.length + 1}`);
       values.push(req.stock_quantity);
     }
@@ -116,6 +123,16 @@ export const update = api<UpdateProductParams & UpdateProductBody, ProductWithIm
 
     if (!product) {
       throw APIError.internal("Failed to update product");
+    }
+
+    if (req.stock_quantity !== undefined && oldStock !== null) {
+      await stockUpdateTopic.publish({
+        productId: req.id,
+        storeId: req.storeId,
+        oldStock,
+        newStock: req.stock_quantity,
+        timestamp: new Date(),
+      });
     }
 
     // Update images if provided

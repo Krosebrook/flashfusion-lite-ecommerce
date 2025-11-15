@@ -2,6 +2,7 @@ import { api, APIError } from "encore.dev/api";
 import { getAuthData } from "~encore/auth";
 import { orderDB } from "./db";
 import type { CreateOrderRequest, OrderWithItems, Order, OrderItem } from "./types";
+import { newOrderTopic, stockUpdateTopic } from "../realtime/topics";
 
 interface CreateOrderParams {
   storeId: number;
@@ -96,8 +97,13 @@ export const create = api<CreateOrderParams & CreateOrderBody, OrderWithItems>(
       }
     }
 
-    // Update product stock quantities
     for (const item of validatedItems) {
+      const product = await orderDB.queryRow<{stock_quantity: number | null}>`
+        SELECT stock_quantity FROM products WHERE id = ${item.product_id}
+      `;
+      
+      const oldStock = product?.stock_quantity ?? 0;
+      
       await orderDB.exec`
         UPDATE products 
         SET stock_quantity = CASE 
@@ -106,7 +112,28 @@ export const create = api<CreateOrderParams & CreateOrderBody, OrderWithItems>(
         END
         WHERE id = ${item.product_id}
       `;
+      
+      const newStock = oldStock - item.quantity;
+      
+      if (product?.stock_quantity !== null) {
+        await stockUpdateTopic.publish({
+          productId: item.product_id,
+          storeId: req.storeId,
+          oldStock,
+          newStock,
+          timestamp: new Date(),
+        });
+      }
     }
+
+    await newOrderTopic.publish({
+      orderId: order.id,
+      storeId: order.store_id,
+      customerId: auth.userID,
+      customerEmail: order.customer_email,
+      totalAmount: order.total_amount,
+      timestamp: new Date(),
+    });
 
     return {
       ...order,

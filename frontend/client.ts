@@ -36,6 +36,8 @@ export class Client {
     public readonly analytics: analytics.ServiceClient
     public readonly auth: auth.ServiceClient
     public readonly category: category.ServiceClient
+    public readonly db: db.ServiceClient
+    public readonly inventory: inventory.ServiceClient
     public readonly notification: notification.ServiceClient
     public readonly order: order.ServiceClient
     public readonly payment: payment.ServiceClient
@@ -58,6 +60,8 @@ export class Client {
         this.analytics = new analytics.ServiceClient(base)
         this.auth = new auth.ServiceClient(base)
         this.category = new category.ServiceClient(base)
+        this.db = new db.ServiceClient(base)
+        this.inventory = new inventory.ServiceClient(base)
         this.notification = new notification.ServiceClient(base)
         this.order = new order.ServiceClient(base)
         this.payment = new payment.ServiceClient(base)
@@ -247,6 +251,79 @@ export namespace category {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI(`/stores/${encodeURIComponent(params.storeId)}/categories/${encodeURIComponent(params.id)}`, {method: "PUT", body: JSON.stringify(body)})
             return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_category_update_update>
+        }
+    }
+}
+
+/**
+ * Import the endpoint handlers to derive the types for the client.
+ */
+import { populate as api_db_populate_populate } from "~backend/db/populate";
+
+export namespace db {
+
+    export class ServiceClient {
+        private baseClient: BaseClient
+
+        constructor(baseClient: BaseClient) {
+            this.baseClient = baseClient
+            this.populate = this.populate.bind(this)
+        }
+
+        public async populate(): Promise<ResponseType<typeof api_db_populate_populate>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/admin/populate`, {method: "POST", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_db_populate_populate>
+        }
+    }
+}
+
+/**
+ * Import the endpoint handlers to derive the types for the client.
+ */
+import { adjustStock as api_inventory_adjust_stock_adjustStock } from "~backend/inventory/adjust_stock";
+import { getLowStock as api_inventory_low_stock_getLowStock } from "~backend/inventory/low_stock";
+import { getStockHistory as api_inventory_stock_history_getStockHistory } from "~backend/inventory/stock_history";
+
+export namespace inventory {
+
+    export class ServiceClient {
+        private baseClient: BaseClient
+
+        constructor(baseClient: BaseClient) {
+            this.baseClient = baseClient
+            this.adjustStock = this.adjustStock.bind(this)
+            this.getLowStock = this.getLowStock.bind(this)
+            this.getStockHistory = this.getStockHistory.bind(this)
+        }
+
+        public async adjustStock(params: RequestType<typeof api_inventory_adjust_stock_adjustStock>): Promise<ResponseType<typeof api_inventory_adjust_stock_adjustStock>> {
+            // Construct the body with only the fields which we want encoded within the body (excluding query string or header fields)
+            const body: Record<string, any> = {
+                operation: params.operation,
+                quantity:  params.quantity,
+            }
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/stores/${encodeURIComponent(params.storeId)}/inventory/${encodeURIComponent(params.productId)}/adjust`, {method: "POST", body: JSON.stringify(body)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_inventory_adjust_stock_adjustStock>
+        }
+
+        public async getLowStock(params: RequestType<typeof api_inventory_low_stock_getLowStock>): Promise<ResponseType<typeof api_inventory_low_stock_getLowStock>> {
+            // Convert our params into the objects we need for the request
+            const query = makeRecord<string, string | string[]>({
+                threshold: params.threshold === undefined ? undefined : String(params.threshold),
+            })
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/stores/${encodeURIComponent(params.storeId)}/inventory/low-stock`, {query, method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_inventory_low_stock_getLowStock>
+        }
+
+        public async getStockHistory(params: { storeId: number, productId: number }): Promise<ResponseType<typeof api_inventory_stock_history_getStockHistory>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/stores/${encodeURIComponent(params.storeId)}/inventory/${encodeURIComponent(params.productId)}/history`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_inventory_stock_history_getStockHistory>
         }
     }
 }
